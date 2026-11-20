@@ -1,14 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { flightNetwork } from './data/flightNetwork.js';
 import {
   evaluateRecoveryCandidates,
+  parseTimeToMinutes,
   simulateNetwork,
   simulateNetworkOrThrow,
   type ClosureSpec,
   type ObjectiveProfile,
   type RecoveryAction,
+  type RecoveryCandidate,
 } from './engine/index.js';
+import { AirspaceChart, PLAYBACK_MAX, PLAYBACK_MIN } from './components/AirspaceChart.js';
 import { AuditTable } from './components/AuditTable.js';
+import { DispatcherPanel } from './components/DispatcherPanel.js';
 import { FlightTraceDrawer } from './components/FlightTraceDrawer.js';
 import { KpiStrip } from './components/KpiStrip.js';
 import { StripBoard } from './components/StripBoard.js';
@@ -21,10 +25,49 @@ export default function App() {
     end: '13:30',
   });
   const [actions, setActions] = useState<RecoveryAction[]>([]);
-  const [objective] = useState<ObjectiveProfile>('LEGAL_COMPLIANCE');
-  const [viewMode, setViewMode] = useState<WorkspaceViewMode>('STRIP_BOARD');
+  const [objective, setObjective] = useState<ObjectiveProfile>('LEGAL_COMPLIANCE');
+  const [viewMode, setViewMode] = useState<WorkspaceViewMode>('SPLIT');
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
+  const [hoveredCandidate, setHoveredCandidate] = useState<RecoveryCandidate | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const [playbackMin, setPlaybackMin] = useState<number>(720); // 12:00 IST
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<1 | 2 | 5>(2);
+  const rafRef = useRef<number | null>(null);
+  const lastTsRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      lastTsRef.current = null;
+      return;
+    }
+
+    const minsPerSecond = playbackSpeed === 1 ? 12 : playbackSpeed === 2 ? 24 : 60;
+
+    const tick = (ts: number) => {
+      if (lastTsRef.current === null) {
+        lastTsRef.current = ts;
+      } else {
+        const dtSec = Math.min(0.1, (ts - lastTsRef.current) / 1000);
+        lastTsRef.current = ts;
+        setPlaybackMin((prev) => {
+          const next = prev + dtSec * minsPerSecond;
+          return next >= PLAYBACK_MAX ? PLAYBACK_MIN : next;
+        });
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      lastTsRef.current = null;
+    };
+  }, [isPlaying, playbackSpeed]);
 
   const baseline = useMemo(
     () => simulateNetworkOrThrow(flightNetwork, closure, []),
@@ -39,15 +82,17 @@ export default function App() {
   const current = currentOutcome.ok ? currentOutcome : baseline;
 
   const candidates = useMemo(
-    () => evaluateRecoveryCandidates(flightNetwork, closure, objective, 6),
+    () => evaluateRecoveryCandidates(flightNetwork, closure, objective, 8),
     [closure, objective],
   );
 
   const handleClosureChange = (next: ClosureSpec) => {
     setClosure(next);
     setActions([]);
+    setHoveredCandidate(null);
     setActionError(null);
     setSelectedFlightId(null);
+    setPlaybackMin(next ? parseTimeToMinutes(next.start) : 720);
   };
 
   const handleApplyActions = (nextActions: RecoveryAction[]) => {
@@ -57,8 +102,20 @@ export default function App() {
       return;
     }
     setActionError(null);
+    setHoveredCandidate(null);
     setActions(nextActions);
   };
+
+  const handleStackAction = (nextAction: RecoveryAction) => {
+    handleApplyActions([...actions, nextAction]);
+  };
+
+  const handleRemoveActionAt = (idx: number) => {
+    const remaining = actions.filter((_, i) => i !== idx);
+    handleApplyActions(remaining);
+  };
+
+  const previewSim = hoveredCandidate?.result ?? null;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#EDE7D8] text-[#14130F]">
@@ -76,72 +133,97 @@ export default function App() {
         }}
       />
 
-      <KpiStrip baseline={baseline} current={current} />
+      <KpiStrip
+        baseline={baseline}
+        current={current}
+        preview={previewSim}
+        previewLabel={hoveredCandidate?.label ?? null}
+      />
 
-      {actionError && (
-        <div className="mx-3 mt-2 px-3 py-1.5 border border-[#C8341C] bg-[#F6F2E8] font-mono text-xs text-[#C8341C]">
-          {actionError}
-        </div>
-      )}
-
-      <main className="flex-1 p-3 grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-3 items-start">
+      <main className="flex-1 p-3 grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-3 items-start">
         <div className="space-y-3 min-w-0">
-          {viewMode === 'AUDIT' ? (
-            <AuditTable simulation={current} onSelectFlight={setSelectedFlightId} />
-          ) : (
+          {viewMode === 'SPLIT' && (
             <>
-              <StripBoard
-                simulation={current}
-                closure={closure}
-                selectedFlightId={selectedFlightId}
-                onSelectFlight={setSelectedFlightId}
-              />
+              <div className="grid grid-cols-1 2xl:grid-cols-[minmax(360px,540px)_1fr] gap-3 items-start">
+                <AirspaceChart
+                  airports={flightNetwork.airports}
+                  simulation={current}
+                  previewSimulation={previewSim}
+                  closure={closure}
+                  playbackMin={Math.round(playbackMin)}
+                  onChangePlaybackMin={setPlaybackMin}
+                  isPlaying={isPlaying}
+                  onTogglePlay={() => setIsPlaying((p) => !p)}
+                  playbackSpeed={playbackSpeed}
+                  onChangeSpeed={setPlaybackSpeed}
+                  selectedFlightId={selectedFlightId}
+                  onSelectFlight={setSelectedFlightId}
+                />
+                <StripBoard
+                  simulation={current}
+                  previewSimulation={previewSim}
+                  closure={closure}
+                  selectedFlightId={selectedFlightId}
+                  onSelectFlight={setSelectedFlightId}
+                  playbackMin={Math.round(playbackMin)}
+                />
+              </div>
               <AuditTable simulation={current} onSelectFlight={setSelectedFlightId} />
             </>
           )}
+
+          {viewMode === 'CHART' && (
+            <AirspaceChart
+              airports={flightNetwork.airports}
+              simulation={current}
+              previewSimulation={previewSim}
+              closure={closure}
+              playbackMin={Math.round(playbackMin)}
+              onChangePlaybackMin={setPlaybackMin}
+              isPlaying={isPlaying}
+              onTogglePlay={() => setIsPlaying((p) => !p)}
+              playbackSpeed={playbackSpeed}
+              onChangeSpeed={setPlaybackSpeed}
+              selectedFlightId={selectedFlightId}
+              onSelectFlight={setSelectedFlightId}
+            />
+          )}
+
+          {viewMode === 'STRIP_BOARD' && (
+            <StripBoard
+              simulation={current}
+              previewSimulation={previewSim}
+              closure={closure}
+              selectedFlightId={selectedFlightId}
+              onSelectFlight={setSelectedFlightId}
+              playbackMin={Math.round(playbackMin)}
+            />
+          )}
+
+          {viewMode === 'AUDIT' && (
+            <AuditTable simulation={current} onSelectFlight={setSelectedFlightId} />
+          )}
         </div>
 
-        {/* Phase 1 Recovery Candidate Summary Column (upgraded to full Vertex AI Dispatcher in Phase 3) */}
-        <aside className="border border-[#14130F] bg-[#F6F2E8] p-3 space-y-2 rounded-[2px]">
-          <div className="border-b border-[#14130F] pb-2 flex items-center justify-between">
-            <h2 className="font-display font-bold text-base uppercase tracking-wide">
-              RECOVERY CANDIDATES
-            </h2>
-            <span className="font-mono text-[10px] text-[#575246]">{objective}</span>
-          </div>
-          {candidates.length === 0 ? (
-            <div className="font-mono text-xs text-[#575246]">
-              Network nominal — no recovery actions required.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {candidates.map((cand) => (
-                <div
-                  key={cand.id}
-                  className="border border-[#C8BFA8] bg-[#EDE7D8] p-2 font-mono text-[11px] space-y-1"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold text-[#14130F]">
-                      #{cand.scoreRank} {cand.label}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyActions(cand.actions)}
-                      className="px-2 py-0.5 border border-[#1D4E89] bg-[#1D4E89] text-[#F6F2E8] text-[10px] font-semibold cursor-pointer"
-                    >
-                      APPLY
-                    </button>
-                  </div>
-                  <div className="text-[10px] text-[#575246] tabular-nums">
-                    Delay {cand.result.metrics.totalDelayMinutes}m · Breaches{' '}
-                    {cand.result.metrics.crewBreachesCount} · Broken{' '}
-                    {cand.result.metrics.brokenConnectionsCount}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </aside>
+        <DispatcherPanel
+          closure={closure}
+          actions={actions}
+          objective={objective}
+          onChangeObjective={setObjective}
+          candidates={candidates}
+          baseline={baseline}
+          current={current}
+          actionError={actionError}
+          onApplyActions={handleApplyActions}
+          onStackAction={handleStackAction}
+          onRemoveActionAt={handleRemoveActionAt}
+          onResetActions={() => {
+            setActions([]);
+            setActionError(null);
+          }}
+          onHoverCandidate={setHoveredCandidate}
+          onSelectFlight={setSelectedFlightId}
+        />
       </main>
 
       <FlightTraceDrawer
