@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
+  FunctionCallingConfigMode,
   GoogleGenAI,
   ThinkingLevel,
   Type,
@@ -417,6 +418,20 @@ function extractFunctionCalls(response: {
     .map((p) => p.functionCall);
 }
 
+function extractVisibleText(response: {
+  text?: string;
+  candidates?: Array<{ content?: Content }>;
+}): string {
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  const joined = parts
+    .filter((p) => !p.thought && typeof p.text === 'string')
+    .map((p) => p.text ?? '')
+    .join('')
+    .trim();
+  if (joined.length > 0) return joined;
+  return (response.text ?? '').trim();
+}
+
 export async function runAskToolLoop(params: {
   client: VertexClientLike;
   model: string;
@@ -451,7 +466,7 @@ export async function runAskToolLoop(params: {
 
     if (calls.length === 0) {
       return {
-        text: (response.text ?? '').trim(),
+        text: extractVisibleText(response),
         toolTrace,
         roundsExecuted,
       };
@@ -490,18 +505,30 @@ export async function runAskToolLoop(params: {
     });
   }
 
-  // Final synthesis pass after reaching max tool rounds (tools disabled so it must conclude)
+  // Final synthesis pass after reaching max tool rounds (tool calling explicitly set to NONE)
   const finalResponse = await params.client.models.generateContent({
     model: params.model,
-    contents,
+    contents: [
+      ...contents,
+      {
+        role: 'user',
+        parts: [
+          {
+            text: 'Tool round limit reached. Summarize the final answer now using only the tool results already provided above.',
+          },
+        ],
+      },
+    ],
     config: {
       systemInstruction: params.systemInstruction,
       thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM },
+      tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+      toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.NONE } },
     },
   });
 
   return {
-    text: (finalResponse.text ?? '').trim(),
+    text: extractVisibleText(finalResponse),
     toolTrace,
     roundsExecuted,
   };
@@ -934,7 +961,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           },
         });
 
-        const narrative = (response.text ?? '').trim();
+        const narrative = extractVisibleText(response);
         if (narrative.length > 0) {
           res.status(200).json({
             ok: true,
