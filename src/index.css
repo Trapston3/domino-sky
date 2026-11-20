@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --paper: #EDE7D8;
+  --strip: #F6F2E8;
+  --ink: #14130F;
+  --muted: #575246;
+  --rule: #C8BFA8;
+  --ontime: #2F6B4F;
+  --delayed: #C98A0B;
+  --breach: #C8341C;
+  --recovery: #1D4E89;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tactile ATC Flight-Strip Rack Notches */
+.strip-perforation {
+  background-image: radial-gradient(circle at center, var(--paper) 2px, transparent 2.5px);
+  background-size: 8px 10px;
+  background-repeat: repeat-y;
+  background-position: center;
+}
+
+/* Aviation NOTAM Closed Hatch (Pure ink rules, no glow/gloss) */
+.notam-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(200, 52, 28, 0.12),
+    rgba(200, 52, 28, 0.12) 4px,
+    transparent 4px,
+    transparent 9px
+  );
+}
+
+.cancelled-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(200, 52, 28, 0.22),
+    rgba(200, 52, 28, 0.22) 3px,
+    rgba(246, 242, 232, 0.85) 3px,
+    rgba(246, 242, 232, 0.85) 7px
+  );
+}
+
+/* Subtle aviation paper range input */
+input[type="range"].atc-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: var(--rule);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+input[type="range"].atc-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 18px;
+  background: var(--ink);
+  border: 1px solid var(--paper);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+input[type="range"].atc-slider::-moz-range-thumb {
+  width: 12px;
+  height: 18px;
+  background: var(--ink);
+  border: 1px solid var(--paper);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+/* Scrollbar styling fitting paper console */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--paper);
+  border-left: 1px solid var(--rule);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border: 1px solid var(--muted);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
