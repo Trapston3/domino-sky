@@ -5,6 +5,9 @@ import { simulateNetwork } from '../src/engine/index.js';
 export const config = { maxDuration: 10 };
 
 export default function handler(_req: VercelRequest, res: VercelResponse): void {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'no-store');
+
   const outcome = simulateNetwork(
     flightNetwork,
     { airport: 'DEL', start: '12:00', end: '13:30' },

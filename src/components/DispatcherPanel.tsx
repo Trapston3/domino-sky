@@ -3,6 +3,7 @@ import { RefreshCw, Send, AlertTriangle, Check, Plus, X } from 'lucide-react';
 import type { DispatchResponsePayload, ToolTraceEntry } from '../../api/dispatch.js';
 import {
   formatActionLabel,
+  formatCandidateId,
   type ClosureSpec,
   type ObjectiveProfile,
   type RecoveryAction,
@@ -231,6 +232,11 @@ export const DispatcherPanel: React.FC<DispatcherPanelProps> = ({
   const tableBefore = briefData?.deterministic.baseline.metrics ?? baseline.metrics;
   const tableAfter = briefData?.deterministic.current.metrics ?? current.metrics;
   const engineLabel = briefData?.engineLabel ?? 'DETERMINISTIC FALLBACK';
+  const activeStackId = useMemo(() => formatCandidateId(actions), [actions]);
+  const activeSingleIds = useMemo(
+    () => new Set(actions.map((a) => formatCandidateId([a]))),
+    [actions],
+  );
 
   return (
     <aside className="border border-[#14130F] bg-[#F6F2E8] rounded-[2px] flex flex-col min-w-0">
@@ -271,13 +277,14 @@ export const DispatcherPanel: React.FC<DispatcherPanelProps> = ({
         <div className="font-mono text-[10px] uppercase tracking-wider text-[#575246] mb-1">
           DISPATCH OBJECTIVE PROFILE
         </div>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-3 gap-1" role="group" aria-label="Dispatch objective profile">
           {OBJECTIVE_TABS.map((tab) => {
             const active = objective === tab.id;
             return (
               <button
                 key={tab.id}
                 type="button"
+                aria-pressed={active}
                 onClick={() => onChangeObjective(tab.id)}
                 title={tab.hint}
                 className={`px-1.5 py-1.5 border font-mono text-[10px] font-bold leading-tight text-center cursor-pointer rounded-[2px] ${
@@ -330,7 +337,10 @@ export const DispatcherPanel: React.FC<DispatcherPanelProps> = ({
       )}
 
       {actionError && (
-        <div className="border-b border-[#C8341C] bg-[#C8341C]/10 px-3 py-2 font-mono text-[11px] text-[#C8341C] flex items-start gap-1.5">
+        <div
+          role="alert"
+          className="border-b border-[#C8341C] bg-[#C8341C]/10 px-3 py-2 font-mono text-[11px] text-[#C8341C] flex items-start gap-1.5"
+        >
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{actionError}</span>
         </div>
@@ -411,7 +421,10 @@ export const DispatcherPanel: React.FC<DispatcherPanelProps> = ({
         </table>
 
         {briefError ? (
-          <div className="font-mono text-[11px] text-[#C8341C] border border-[#C8341C] p-2 bg-[#EDE7D8]">
+          <div
+            role="alert"
+            className="font-mono text-[11px] text-[#C8341C] border border-[#C8341C] p-2 bg-[#EDE7D8]"
+          >
             Briefing error: {briefError}
           </div>
         ) : (
@@ -439,13 +452,11 @@ export const DispatcherPanel: React.FC<DispatcherPanelProps> = ({
         ) : (
           <div className="space-y-2 max-h-[360px] overflow-y-auto pr-0.5">
             {candidates.map((cand) => {
-              const isApplied =
-                actions.length === cand.actions.length &&
-                JSON.stringify(actions) === JSON.stringify(cand.actions);
+              const isApplied = actions.length > 0 && activeStackId === cand.id;
               const canStack =
                 actions.length > 0 &&
                 cand.actions.length === 1 &&
-                !actions.some((a) => JSON.stringify(a) === JSON.stringify(cand.actions[0]));
+                !activeSingleIds.has(cand.id);
 
               return (
                 <div
@@ -605,7 +616,7 @@ export const DispatcherPanel: React.FC<DispatcherPanelProps> = ({
         </form>
 
         {qaHistory.length > 0 && (
-          <div className="space-y-2 max-h-[260px] overflow-y-auto pt-1">
+          <div aria-live="polite" className="space-y-2 max-h-[260px] overflow-y-auto pt-1">
             {qaHistory.map((item) => (
               <div
                 key={item.id}

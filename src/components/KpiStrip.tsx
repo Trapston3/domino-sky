@@ -36,7 +36,7 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
       prev: p?.delayedFlightsCount ?? null,
       unit: '',
       sub: `${c.operatedFlights} operated · ${c.cancelledFlightsCount} cancelled`,
-      accent: c.delayedFlightsCount > 0 ? 'text-[#C98A0B]' : 'text-[#2F6B4F]',
+      accent: c.delayedFlightsCount > 0 ? 'text-[#8A5D00]' : 'text-[#2F6B4F]',
     },
     {
       label: 'TOTAL DELAY',
@@ -45,7 +45,7 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
       prev: p?.totalDelayMinutes ?? null,
       unit: 'm',
       sub: `Max single leg: ${c.maxFlightDelayMinutes}m`,
-      accent: c.totalDelayMinutes > 0 ? 'text-[#C98A0B]' : 'text-[#2F6B4F]',
+      accent: c.totalDelayMinutes > 0 ? 'text-[#8A5D00]' : 'text-[#2F6B4F]',
     },
     {
       label: 'BROKEN CONNS',
@@ -184,7 +184,10 @@ export const KpiStrip: React.FC<KpiStripProps> = ({
         <div className="flex flex-wrap items-center gap-3">
           <span>* Crew duty evaluated against actual arrival times.</span>
           {previewLabel && (
-            <span className="px-1.5 py-0.5 border border-[#1D4E89] bg-[#F6F2E8] text-[#1D4E89] font-semibold">
+            <span
+              aria-live="polite"
+              className="px-1.5 py-0.5 border border-[#1D4E89] bg-[#F6F2E8] text-[#1D4E89] font-semibold"
+            >
               HOVER PREVIEW: {previewLabel}
             </span>
           )}

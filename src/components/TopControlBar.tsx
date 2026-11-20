@@ -162,6 +162,7 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
               <button
                 key={preset.id}
                 type="button"
+                aria-pressed={active}
                 onClick={() => onChangeClosure(preset.closure)}
                 className={`px-2 py-1 border font-mono text-[11px] font-semibold tabular-nums rounded-[2px] cursor-pointer transition-colors ${
                   active
@@ -177,13 +178,19 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
         </div>
 
         {/* View Switcher */}
-        <div className="flex items-center gap-1 border border-[#14130F] bg-[#EDE7D8] p-0.5 rounded-[2px]">
+        <div
+          className="flex items-center gap-1 border border-[#14130F] bg-[#EDE7D8] p-0.5 rounded-[2px]"
+          role="tablist"
+          aria-label="Workspace view mode"
+        >
           {viewTabs.map((tab) => {
             const active = viewMode === tab.id;
             return (
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => onChangeViewMode(tab.id)}
                 className={`px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide rounded-[1px] cursor-pointer transition-colors ${
                   active

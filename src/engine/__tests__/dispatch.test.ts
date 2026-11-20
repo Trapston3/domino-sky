@@ -7,6 +7,7 @@ import handler, {
   type DispatchResponsePayload,
   type VertexClientLike,
 } from '../../../api/dispatch.js';
+import pingHandler from '../../../api/ping.js';
 
 function createMockReqRes(options: {
   method?: string;
@@ -247,5 +248,50 @@ describe('/api/dispatch zero-trust handler & Gemini 3+ tool loop', () => {
 
     // 5th call (synthesis) must NOT allow more than 4 tool-calling rounds
     expect(capturedContentsSnapshots.length).toBe(5);
+  });
+
+  it('sets defensive security headers and sanitizes malformed credential errors without leaking internals', async () => {
+    process.env.GCP_SERVICE_ACCOUNT_B64 = Buffer.from(
+      JSON.stringify({ secret_leak_marker: 'DO_NOT_EXPOSE_THIS', invalid: true }),
+      'utf8',
+    ).toString('base64');
+
+    const call = createMockReqRes({
+      body: {
+        mode: 'brief',
+        closure: { airport: 'DEL', start: '12:00', end: '13:30' },
+        actions: [],
+        objective: 'LEGAL_COMPLIANCE',
+      },
+    });
+    await handler(call.req, call.res);
+    expect(call.getStatus()).toBe(200);
+    expect(call.getHeaders()['x-content-type-options']).toBe('nosniff');
+    expect(call.getHeaders()['cache-control']).toBe('no-store');
+    expect(call.getHeaders()['referrer-policy']).toBe('strict-origin-when-cross-origin');
+
+    const body = call.getBody() as DispatchResponsePayload;
+    expect(body.engineLabel).toBe('DETERMINISTIC FALLBACK');
+    expect(body.fallbackReason).toBe('VERTEX_INIT_FAILED');
+    expect(JSON.stringify(body)).not.toContain('DO_NOT_EXPOSE_THIS');
+  });
+
+  it('/api/ping returns 200 OK DEL smokeCheck with defensive security headers', () => {
+    const call = createMockReqRes({ method: 'GET' });
+    pingHandler(call.req, call.res);
+    expect(call.getStatus()).toBe(200);
+    expect(call.getHeaders()['x-content-type-options']).toBe('nosniff');
+    expect(call.getHeaders()['cache-control']).toBe('no-store');
+    expect(call.getBody()).toMatchObject({
+      ok: true,
+      service: 'domino-sky-api',
+      smokeCheck: {
+        closure: { airport: 'DEL', start: '12:00', end: '13:30' },
+        delayedFlightsCount: 10,
+        totalDelayMinutes: 680,
+        brokenConnectionsCount: 1,
+        crewBreachesCount: 1,
+      },
+    });
   });
 });

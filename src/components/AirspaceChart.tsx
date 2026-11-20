@@ -546,7 +546,16 @@ export const AirspaceChart: React.FC<AirspaceChartProps> = ({
               <g
                 key={flight.flight_id}
                 transform={`translate(${x}, ${y})`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Inspect ${flight.flight_id} ${flight.origin} to ${flight.destination}${flight.delayMin > 0 ? `, delayed ${flight.delayMin} minutes` : ''}`}
                 onClick={() => onSelectFlight(flight.flight_id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectFlight(flight.flight_id);
+                  }
+                }}
                 onMouseEnter={() => setHoveredFlightId(flight.flight_id)}
                 onMouseLeave={() => setHoveredFlightId(null)}
                 style={{ cursor: 'pointer' }}

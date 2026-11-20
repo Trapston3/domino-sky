@@ -47,7 +47,7 @@ export const AuditTable: React.FC<AuditTableProps> = ({ simulation, onSelectFlig
     <div className="border border-[#14130F] bg-[#F6F2E8] rounded-[2px] flex flex-col">
       {/* Header Bar */}
       <div className="border-b border-[#14130F] bg-[#EDE7D8] px-3 py-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" role="tablist" aria-label="Audit entity tabs">
           {(
             [
               { id: 'FLIGHTS', label: `FLIGHTS (${simulation.flights.length})` },
@@ -58,6 +58,8 @@ export const AuditTable: React.FC<AuditTableProps> = ({ simulation, onSelectFlig
             <button
               key={item.id}
               type="button"
+              role="tab"
+              aria-selected={tab === item.id}
               onClick={() => setTab(item.id)}
               className={`px-2.5 py-1 border font-mono text-[11px] font-semibold cursor-pointer ${
                 tab === item.id
@@ -70,7 +72,7 @@ export const AuditTable: React.FC<AuditTableProps> = ({ simulation, onSelectFlig
           ))}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" role="group" aria-label="Audit filter scope">
           {(
             [
               { id: 'ALL', label: 'ALL' },
@@ -81,6 +83,7 @@ export const AuditTable: React.FC<AuditTableProps> = ({ simulation, onSelectFlig
             <button
               key={s.id}
               type="button"
+              aria-pressed={scope === s.id}
               onClick={() => setScope(s.id)}
               className={`px-2 py-0.5 border font-mono text-[10px] font-semibold cursor-pointer ${
                 scope === s.id
@@ -152,7 +155,7 @@ export const AuditTable: React.FC<AuditTableProps> = ({ simulation, onSelectFlig
                     </td>
                     <td
                       className={`px-2.5 py-1.5 font-bold ${
-                        f.delayMin > 0 ? 'text-[#C98A0B]' : 'text-[#2F6B4F]'
+                        f.delayMin > 0 ? 'text-[#8A5D00]' : 'text-[#2F6B4F]'
                       }`}
                     >
                       {f.cancelled ? '—' : `+${f.delayMin}m`}

@@ -32,6 +32,7 @@ const MAX_QUESTION_CHARS = 300;
 const MAX_TOOL_ROUNDS = 4;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
+const MAX_TRACKED_IPS = 1000;
 
 const VALID_OBJECTIVES = new Set<ObjectiveProfile>([
   'LEGAL_COMPLIANCE',
@@ -62,6 +63,21 @@ function getClientIp(req: VercelRequest): string {
 
 function checkRateLimit(ip: string, nowMs = Date.now()): boolean {
   const cutoff = nowMs - RATE_LIMIT_WINDOW_MS;
+  if (!ipRequestLog.has(ip) && ipRequestLog.size >= MAX_TRACKED_IPS) {
+    for (const [trackedIp, times] of ipRequestLog.entries()) {
+      const fresh = times.filter((ts) => ts > cutoff);
+      if (fresh.length === 0) {
+        ipRequestLog.delete(trackedIp);
+      } else {
+        ipRequestLog.set(trackedIp, fresh);
+      }
+    }
+    if (ipRequestLog.size >= MAX_TRACKED_IPS) {
+      const oldestKey = ipRequestLog.keys().next().value;
+      if (oldestKey !== undefined) ipRequestLog.delete(oldestKey);
+    }
+  }
+
   const timestamps = (ipRequestLog.get(ip) ?? []).filter((ts) => ts > cutoff);
   if (timestamps.length >= RATE_LIMIT_MAX_REQUESTS) {
     ipRequestLog.set(ip, timestamps);
@@ -196,6 +212,14 @@ function createVertexClientFromEnv(): VertexClientLike | null {
       client_email?: string;
       private_key?: string;
     };
+    if (
+      typeof credentials.client_email !== 'string' ||
+      credentials.client_email.trim().length === 0 ||
+      typeof credentials.private_key !== 'string' ||
+      credentials.private_key.trim().length === 0
+    ) {
+      throw new Error('INVALID_SERVICE_ACCOUNT_CREDENTIALS');
+    }
     const project = process.env.GOOGLE_CLOUD_PROJECT?.trim() || credentials.project_id;
     const location = process.env.GOOGLE_CLOUD_LOCATION?.trim() || 'global';
     return new GoogleGenAI({
@@ -566,14 +590,10 @@ function buildDeterministicAskResponse(params: {
       name,
       args,
       ok: Boolean(out.ok ?? true),
-      code: typeof out.code === 'string' ? outputCode(out) : undefined,
+      code: typeof out.code === 'string' ? out.code : undefined,
     });
     return out;
   };
-
-  function outputCode(out: Record<string, unknown>): string | undefined {
-    return typeof out.code === 'string' ? out.code : undefined;
-  }
 
   // 1. Check for SWAP_SPARE intent
   if (
@@ -759,6 +779,10 @@ function buildDeterministicAskResponse(params: {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -868,16 +892,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   };
 
   let vertexClient: VertexClientLike | null = null;
-  let credInitError: string | undefined;
+  let fallbackReason: 'NO_VERTEX_CREDENTIALS' | 'VERTEX_INIT_FAILED' | 'VERTEX_API_UNAVAILABLE' =
+    'NO_VERTEX_CREDENTIALS';
   try {
     vertexClient = createVertexClientFromEnv();
   } catch (err) {
-    credInitError = err instanceof Error ? err.message : 'Credential initialization failed';
+    console.warn('[dispatch] Vertex client init failed:', err instanceof Error ? err.message : err);
+    fallbackReason = 'VERTEX_INIT_FAILED';
   }
 
   const executeTool = buildToolContext(closure, baseline, current);
 
   if (vertexClient) {
+    fallbackReason = 'VERTEX_API_UNAVAILABLE';
     try {
       if (mode === 'brief') {
         const promptPayload = {
@@ -955,7 +982,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         }
       }
     } catch (err) {
-      credInitError = err instanceof Error ? err.message : 'Vertex AI request failed';
+      console.warn('[dispatch] Vertex API request failed:', err instanceof Error ? err.message : err);
+      fallbackReason = 'VERTEX_API_UNAVAILABLE';
     }
   }
 
@@ -973,7 +1001,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       deterministic: deterministicPayload,
       narrative,
       toolTrace: [],
-      ...(credInitError ? { fallbackReason: credInitError } : {}),
+      fallbackReason,
     } satisfies DispatchResponsePayload);
     return;
   }
@@ -996,6 +1024,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     deterministic: deterministicPayload,
     narrative: deterministicAsk.narrative,
     toolTrace: deterministicAsk.toolTrace,
-    ...(credInitError ? { fallbackReason: credInitError } : {}),
+    fallbackReason,
   } satisfies DispatchResponsePayload);
 }

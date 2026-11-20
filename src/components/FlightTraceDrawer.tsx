@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import {
   formatMinutesToTime,
@@ -23,6 +23,17 @@ export const FlightTraceDrawer: React.FC<FlightTraceDrawerProps> = ({
   onClose,
   onSelectFlight,
 }) => {
+  useEffect(() => {
+    if (!flightId) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [flightId, onClose]);
+
   if (!flightId) return null;
   const inspection = inspectFlight(simulation, dataset, flightId);
   if (!inspection) return null;
@@ -51,7 +62,7 @@ export const FlightTraceDrawer: React.FC<FlightTraceDrawerProps> = ({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={`Flight trace ${flight.flight_id}`}
+      aria-labelledby="flight-trace-title"
     >
       <div
         className="w-full max-w-lg h-full bg-[#F6F2E8] border-l-2 border-[#14130F] flex flex-col overflow-hidden"
@@ -61,7 +72,10 @@ export const FlightTraceDrawer: React.FC<FlightTraceDrawerProps> = ({
         <div className="border-b-2 border-[#14130F] bg-[#EDE7D8] px-4 py-3 flex items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-display font-bold text-xl tracking-wide text-[#14130F]">
+              <span
+                id="flight-trace-title"
+                className="font-display font-bold text-xl tracking-wide text-[#14130F]"
+              >
                 {flight.flight_id}
               </span>
               <span className="font-mono text-sm font-semibold text-[#14130F]">
@@ -84,6 +98,7 @@ export const FlightTraceDrawer: React.FC<FlightTraceDrawerProps> = ({
 
           <button
             type="button"
+            autoFocus
             onClick={onClose}
             aria-label="Close flight trace drawer"
             className="p-1.5 border border-[#14130F] bg-[#F6F2E8] hover:bg-[#14130F] hover:text-[#F6F2E8] cursor-pointer"
@@ -116,7 +131,7 @@ export const FlightTraceDrawer: React.FC<FlightTraceDrawerProps> = ({
                 <div className="text-[10px] text-[#575246]">TOTAL DELAY</div>
                 <div
                   className={`font-bold mt-0.5 ${
-                    flight.delayMin > 0 ? 'text-[#C98A0B]' : 'text-[#2F6B4F]'
+                    flight.delayMin > 0 ? 'text-[#8A5D00]' : 'text-[#2F6B4F]'
                   }`}
                 >
                   {flight.cancelled ? 'CXL' : `+${flight.delayMin}m`}
@@ -185,7 +200,7 @@ export const FlightTraceDrawer: React.FC<FlightTraceDrawerProps> = ({
                           {step.kind}
                         </span>
                       </div>
-                      <span className="font-bold text-[#C98A0B] tabular-nums">
+                      <span className="font-bold text-[#8A5D00] tabular-nums">
                         +{step.addedDelayMin}m ({formatMinutesToTime(step.fromTimeMin)} →{' '}
                         {formatMinutesToTime(step.toTimeMin)})
                       </span>

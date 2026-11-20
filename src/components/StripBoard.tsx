@@ -34,13 +34,7 @@ function getBarColors(flight: SimulatedFlight): string {
   if (flight.crewBreach) {
     return 'bg-[#C8341C] border border-[#14130F] text-[#F6F2E8]';
   }
-  if (flight.isSpareTakeover || flight.spareTailId) {
-    if (flight.delayMin > 0) {
-      return 'bg-[#1D4E89] border border-[#14130F] text-[#F6F2E8]';
-    }
-    return 'bg-[#1D4E89] border border-[#14130F] text-[#F6F2E8]';
-  }
-  if (flight.holdDelayMin > 0) {
+  if (flight.isSpareTakeover || flight.spareTailId || flight.holdDelayMin > 0) {
     return 'bg-[#1D4E89] border border-[#14130F] text-[#F6F2E8]';
   }
   if (flight.delayMin > 0) {

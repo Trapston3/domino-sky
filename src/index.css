@@ -113,6 +113,11 @@ input[type="range"].atc-slider::-moz-range-thumb {
   background: var(--muted);
 }
 
+:focus-visible {
+  outline: 2px solid #1D4E89;
+  outline-offset: 1px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

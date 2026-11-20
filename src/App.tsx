@@ -48,6 +48,11 @@ export default function App() {
     const minsPerSecond = playbackSpeed === 1 ? 12 : playbackSpeed === 2 ? 24 : 60;
 
     const tick = (ts: number) => {
+      if (document.hidden) {
+        lastTsRef.current = null;
+        rafRef.current = null;
+        return;
+      }
       if (lastTsRef.current === null) {
         lastTsRef.current = ts;
       } else {
@@ -61,8 +66,23 @@ export default function App() {
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+        lastTsRef.current = null;
+      } else if (rafRef.current === null) {
+        lastTsRef.current = null;
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    if (!document.hidden) {
+      rafRef.current = requestAnimationFrame(tick);
+    }
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       lastTsRef.current = null;
@@ -119,6 +139,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#EDE7D8] text-[#14130F]">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-1.5 focus:bg-[#14130F] focus:text-[#F6F2E8] focus:font-mono focus:text-xs"
+      >
+        Skip to operations board
+      </a>
       <TopControlBar
         airports={flightNetwork.airports}
         closure={closure}
@@ -140,7 +166,7 @@ export default function App() {
         previewLabel={hoveredCandidate?.label ?? null}
       />
 
-      <main className="flex-1 p-3 grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-3 items-start">
+      <main id="main-content" className="flex-1 p-3 grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-3 items-start">
         <div className="space-y-3 min-w-0">
           {viewMode === 'SPLIT' && (
             <>
